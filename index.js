@@ -1,9 +1,9 @@
 const express = require('express')
-const cors = require('cors');
+const cors = require('cors')
 
 const app = express()
 
-app.use(cors());
+app.use(cors())
 app.use(express.json())
 
 let notes = [
@@ -58,8 +58,8 @@ app.post('/notes', (request, response) => {
   const maxId = Math.max(...ids)
 
   const newNote = {
-    'id': maxId + 1,
-    'content': note.content,
+    id: maxId + 1,
+    content: note.content,
     important: typeof note.important !== 'undefined' ? note.important : false,
     date: new Date().toISOString()
   }
