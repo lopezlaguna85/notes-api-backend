@@ -1,0 +1,7 @@
+PUT http://localhost:3001/notes/622a3f98d027b4d14ff69cda
+Content-Type: application/json
+
+{
+  "content": "La modificación mola",
+  "importat": true
+}

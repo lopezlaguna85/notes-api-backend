@@ -1,75 +1,118 @@
-const express = require('express')
-const cors = require('cors')
+require('dotenv').config()
+require('./mongo.js')
 
+const express = require('express')
+const Sentry = require('@sentry/node')
+const Tracing = require('@sentry/tracing')
 const app = express()
+const cors = require('cors')
+const Note = require('./models/Note')
+
+const notFound = require('./middleware/notFound.js')
+const handleErrors = require('./middleware/handleErrors.js')
+// const userExtractor = require('./middleware/userExtractor')
 
 app.use(cors())
 app.use(express.json())
+app.use('/images', express.static('images'))
 
-let notes = [
-  {
-    id: 1,
-    content: 'HTML is easy',
-    date: '2019-05-30T17:30:31.098Z',
-    important: true
-  },
-  {
-    id: 2,
-    content: 'Browser can execute only JavaScript',
-    date: '2019-05-30T18:39:34.091Z',
-    important: false
-  },
-  {
-    id: 3,
-    content: 'GET and POST are the most important methods of HTTP protocol',
-    date: '2019-05-30T19:20:14.298Z',
-    important: true
-  }
-]
+Sentry.init({
+  dsn: 'https://7a8e050e6e2e4085af178c878366c8ed@o1164318.ingest.sentry.io/6253319',
+  integrations: [
+    // enable HTTP calls tracing
+    new Sentry.Integrations.Http({ tracing: true }),
+    // enable Express.js middleware tracing
+    new Tracing.Integrations.Express({ app })
+  ],
+
+  // Set tracesSampleRate to 1.0 to capture 100%
+  // of transactions for performance monitoring.
+  // We recommend adjusting this value in production
+  tracesSampleRate: 1.0
+})
+
+// RequestHandler creates a separate execution context using domains, so that every
+// transaction/span/breadcrumb is attached to its own Hub instance
+app.use(Sentry.Handlers.requestHandler())
+// TracingHandler creates a trace for every incoming request
+app.use(Sentry.Handlers.tracingHandler())
 
 app.get('/', (request, response) => {
   response.send('<h1>Hola!!</h1>')
 })
 
 app.get('/notes', (request, response) => {
-  response.json(notes)
+  Note.find({}).then(res => {
+    response.json(res)
+  }).catch(e => {
+    console.error(e)
+  })
 })
 
-app.get('/notes/:id', (request, response) => {
-  const id = Number(request.params.id)
-  const note = notes.find(note => note.id === id)
-  if (note) {
-    response.json(note)
-  } else {
-    response.status(404).end()
-  }
+app.get('/notes/:id', (request, response, next) => {
+  const { id } = request.params
+  Note.findById(id).then(res => {
+    if (res) {
+      response.json(res)
+    } else {
+      response.status(404).end()
+    }
+  }).catch(e => {
+    next(e)
+  })
 })
 
-app.delete('/notes/:id', (request, response) => {
-  const id = Number(request.params.id)
-  notes = notes.filter(note => note.id !== id)
-  response.status(204).end()
-})
-
-app.post('/notes', (request, response) => {
+app.put('/notes/:id', (request, response, next) => {
+  const { id } = request.params
   const note = request.body
 
-  const ids = notes.map(note => note.id)
-  const maxId = Math.max(...ids)
-
-  const newNote = {
-    id: maxId + 1,
+  const updateNote = {
     content: note.content,
-    important: typeof note.important !== 'undefined' ? note.important : false,
-    date: new Date().toISOString()
+    important: note.important
   }
-  console.log(newNote)
-  notes = [...notes, newNote]
 
-  response.status(201).json(newNote)
+  Note.findByIdAndUpdate(id, updateNote, { new: true })
+    .then(res => {
+      response.json(res)
+    }).catch(e => next(e))
 })
 
-const PORT = process.env.PORT || 3001
+app.delete('/notes/:id', (request, response, next) => {
+  const { id } = request.params
+
+  Note.findByIdAndDelete(id)
+    .then(res => response.status(204).end())
+    .catch(e => next(e))
+})
+
+app.post('/notes', (request, response, next) => {
+  const note = request.body
+
+  if (!note.content) {
+    return response.status(400).json({
+      error: 'required "content" field is missing'
+    })
+  }
+
+  const newNote = new Note({
+    content: note.content,
+    date: new Date(),
+    important: true
+  })
+
+  newNote.save()
+    .then(res => {
+      response.status(201).json(newNote)
+    }).catch(e => {
+      next(e)
+    })
+})
+
+app.use(notFound)
+app.use(Sentry.Handlers.errorHandler())
+app.use(handleErrors)
+
+const PORT = process.env.PORT
 
 app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`)
