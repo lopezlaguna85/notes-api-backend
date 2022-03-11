@@ -41,12 +41,9 @@ app.get('/', (request, response) => {
   response.send('<h1>Hola!!</h1>')
 })
 
-app.get('/notes', (request, response) => {
-  Note.find({}).then(res => {
-    response.json(res)
-  }).catch(e => {
-    console.error(e)
-  })
+app.get('/notes', async (request, response) => {
+  const notes = await Note.find({})
+  response.json(notes)
 })
 
 app.get('/notes/:id', (request, response, next) => {
@@ -77,15 +74,18 @@ app.put('/notes/:id', (request, response, next) => {
     }).catch(e => next(e))
 })
 
-app.delete('/notes/:id', (request, response, next) => {
+app.delete('/notes/:id', async (request, response, next) => {
   const { id } = request.params
 
-  Note.findByIdAndDelete(id)
-    .then(res => response.status(204).end())
-    .catch(e => next(e))
+  try {
+    await Note.findByIdAndDelete(id)
+    response.status(204).end()
+  } catch (e) {
+    next(e)
+  }
 })
 
-app.post('/notes', (request, response, next) => {
+app.post('/notes', async (request, response, next) => {
   const note = request.body
 
   if (!note.content) {
@@ -100,12 +100,19 @@ app.post('/notes', (request, response, next) => {
     important: true
   })
 
-  newNote.save()
+  /*   newNote.save()
     .then(res => {
       response.status(201).json(newNote)
     }).catch(e => {
       next(e)
-    })
+    }) */
+
+  try {
+    const savedNote = await newNote.save()
+    response.status(201).json(savedNote)
+  } catch (e) {
+    next(e)
+  }
 })
 
 app.use(notFound)
@@ -114,6 +121,8 @@ app.use(handleErrors)
 
 const PORT = process.env.PORT
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`)
 })
+
+module.exports = { app, server }

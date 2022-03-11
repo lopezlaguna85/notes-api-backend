@@ -1,4 +1,5 @@
 const palindrome = (string) => {
+  if (typeof string === 'undefined') return
   return string
     .split('')
     .reverse()
@@ -6,6 +7,7 @@ const palindrome = (string) => {
 }
 
 const average = array => {
+  if (array.length === 0 || array === 'undefined') return 0
   let sum = 0
   array.forEach(num => { sum += num })
   return sum / array.length
