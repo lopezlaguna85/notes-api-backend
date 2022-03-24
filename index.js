@@ -6,10 +6,12 @@ const Sentry = require('@sentry/node')
 const Tracing = require('@sentry/tracing')
 const app = express()
 const cors = require('cors')
-const Note = require('./models/Note')
 
 const notFound = require('./middleware/notFound.js')
 const handleErrors = require('./middleware/handleErrors.js')
+const usersRouter = require('./controllers/users')
+const notesRouter = require('./controllers/notes')
+const loginRouter = require('./controllers/login')
 // const userExtractor = require('./middleware/userExtractor')
 
 app.use(cors())
@@ -41,79 +43,11 @@ app.get('/', (request, response) => {
   response.send('<h1>Hola!!</h1>')
 })
 
-app.get('/notes', async (request, response) => {
-  const notes = await Note.find({})
-  response.json(notes)
-})
+app.use('/notes', notesRouter)
 
-app.get('/notes/:id', (request, response, next) => {
-  const { id } = request.params
-  Note.findById(id).then(res => {
-    if (res) {
-      response.json(res)
-    } else {
-      response.status(404).end()
-    }
-  }).catch(e => {
-    next(e)
-  })
-})
+app.use('/users', usersRouter)
 
-app.put('/notes/:id', (request, response, next) => {
-  const { id } = request.params
-  const note = request.body
-
-  const updateNote = {
-    content: note.content,
-    important: note.important
-  }
-
-  Note.findByIdAndUpdate(id, updateNote, { new: true })
-    .then(res => {
-      response.json(res)
-    }).catch(e => next(e))
-})
-
-app.delete('/notes/:id', async (request, response, next) => {
-  const { id } = request.params
-
-  try {
-    await Note.findByIdAndDelete(id)
-    response.status(204).end()
-  } catch (e) {
-    next(e)
-  }
-})
-
-app.post('/notes', async (request, response, next) => {
-  const note = request.body
-
-  if (!note.content) {
-    return response.status(400).json({
-      error: 'required "content" field is missing'
-    })
-  }
-
-  const newNote = new Note({
-    content: note.content,
-    date: new Date(),
-    important: true
-  })
-
-  /*   newNote.save()
-    .then(res => {
-      response.status(201).json(newNote)
-    }).catch(e => {
-      next(e)
-    }) */
-
-  try {
-    const savedNote = await newNote.save()
-    response.status(201).json(savedNote)
-  } catch (e) {
-    next(e)
-  }
-})
+app.use('/login', loginRouter)
 
 app.use(notFound)
 app.use(Sentry.Handlers.errorHandler())
